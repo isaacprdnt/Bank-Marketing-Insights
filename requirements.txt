@@ -5,3 +5,4 @@ seaborn>=0.13.2
 scikit-learn>=1.5.0
 boto3
 python-dotenv
+streamlit
