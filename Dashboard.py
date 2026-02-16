@@ -106,7 +106,9 @@ with c2:
     * L'Accuracy (Précision globale) sera trompeuse.
     * Un modèle qui prédit "Non" tout le temps aura ~88% de réussite.
     
-    👉 **Action :** Nous utiliserons le **F1-Score** ou le **Recall** pour évaluer la performance réelle.
+    👉 **Action :** 1.  **Stratifier** nos échantillons (garder les proportions exactes de la réalité lors de l'entraînement).
+    
+    2.  Juger le modèle sur son **Recall** (sa capacité à ne rater aucune opportunité de vente), plutôt que sur sa précision globale.
     """)
     
 st.markdown("---")
@@ -199,7 +201,27 @@ with col_age2:
     ax4.set_xlabel("Statut")
     sns.despine()
     st.pyplot(fig4)
-    
+
+# --- CALCULS AUTOMATIQUES POUR LE RÉSUMÉ DÉMOGRAPHIQUE (PARTIE B) ---
+if 'target_num' not in df.columns:
+    df['target_num'] = df[COLONNE_CIBLE].apply(lambda x: 1 if x == 'yes' else 0)
+
+# Identification du Meilleur Groupe d'Âge
+top_age_group = df.groupby('age_group')['target_num'].mean().idxmax() if 'age_group' in df.columns else "N/A"
+perf_age = df.groupby('age_group')['target_num'].mean().max() * 100 if 'age_group' in df.columns else 0
+
+# Identification du Meilleur Statut Matrimonial
+top_statut = df.groupby('statut_matrimonial')['target_num'].mean().idxmax()
+perf_statut = df.groupby('statut_matrimonial')['target_num'].mean().max() * 100
+
+st.info(f"""
+**Observation Business :** Sur le plan démographique, deux signaux forts se dégagent :
+1.  **L'Âge :** Le segment **{top_age_group}** est le plus réactif avec **{perf_age:.1f}%** de conversion.
+2.  **La Situation :** Les profils **{top_statut}** (statut matrimonial) surperforment avec **{perf_statut:.1f}%** de réussite.
+
+👉 *Stratégie : Ne vendez pas le même produit à tout le monde. Adaptez le discours.*
+""")
+
 st.markdown("---")
 
 # --- SECTION 4 : STRATÉGIE TEMPORELLE (WHEN) ---
@@ -213,49 +235,42 @@ Le but est d'optimiser le planning des équipes.
 # 1. ANALYSE MENSUELLE (Saisonnalité)
 st.subheader("A. Le Paradoxe du Mois de Mai (Volume vs Performance)")
 
-# On définit l'ordre chronologique des mois (sinon c'est alphabétique)
+# On définit l'ordre chronologique des mois
 ordre_mois = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 # Préparation des données
 df_mois = df.groupby('mois').agg(
     Volume=('souscription', 'count'),
     Taux_Conversion=('souscription', lambda x: (x == 'yes').mean() * 100)
-).reindex(ordre_mois).dropna() # On réindexe pour avoir l'ordre Jan->Dec
+).reindex(ordre_mois).dropna() 
 
 col_mois1, col_mois2 = st.columns([2, 1])
 
 with col_mois1:
-    # Graphique à double axe (Combo Chart)
     fig5, ax1 = plt.subplots(figsize=(10, 5))
-
-    # Axe 1 (Gauche) : Barres pour le Volume
     sns.barplot(x=df_mois.index, y='Volume', data=df_mois, color='lightgrey', alpha=0.6, ax=ax1, label='Volume Appels')
     ax1.set_ylabel("Volume d'appels (Barres)", color='grey')
     
-    # Axe 2 (Droit) : Ligne pour la Performance
     ax2 = ax1.twinx()
     sns.lineplot(x=df_mois.index, y='Taux_Conversion', data=df_mois, color='red', marker='o', linewidth=3, ax=ax2, label='Taux de Réussite')
     ax2.set_ylabel("Taux de Conversion % (Ligne Rouge)", color='red')
     
-    # Titre et affichage
     plt.title("Volume vs Performance par Mois")
     st.pyplot(fig5)
 
 with col_mois2:
     st.info("""
     📉 **Analyse :**
-    Regardez le mois de **Mai (may)** : C'est le pic d'appels (barre grise géante), mais le taux de réussite (ligne rouge) s'effondre.
+    Le mois de **Mai (may)** : C'est le pic d'appels, mais le taux de réussite s'effondre.
     
     ✅ **Opportunité :**
-    Les mois de **Mars, Septembre, Octobre** ont peu d'appels mais d'excellents taux de conversion.
+    Les mois de **Mars, Septembre, Octobre** ont moins d'appels mais d'excellents taux de conversion.
     """)
 
 
 # 2. ANALYSE DE LA PRESSION (Nombre d'appels)
 st.subheader("B. Acharnement vs Efficacité (Combien d'appels ?)")
 
-# On calcule le taux de réussite par nombre d'appels (campaign)
-# On limite l'affichage aux 10 premiers appels pour la lisibilité
 df_campaign = df.groupby('campaign')['souscription'].apply(lambda x: (x=='yes').mean() * 100).reset_index()
 df_campaign = df_campaign[df_campaign['campaign'] <= 10] 
 
@@ -264,25 +279,21 @@ col_cam1, col_cam2 = st.columns([2, 1])
 with col_cam1:
     fig6, ax6 = plt.subplots(figsize=(8, 4))
     sns.lineplot(x='campaign', y='souscription', data=df_campaign, marker='o', color='purple')
-    
-    # Zone de danger (après 3 appels)
     plt.axvline(x=3, color='red', linestyle='--', alpha=0.5)
     plt.text(3.2, df_campaign['souscription'].max(), 'Zone de Harcèlement', color='red')
     
     ax6.set_title("Chute de la conversion après X appels")
-    ax6.set_xlabel("Nombre de contacts durant cette campagne")
+    ax6.set_xlabel("Nombre de contacts")
     ax6.set_ylabel("Probabilité de succès (%)")
-    ax6.set_xticks(range(1, 11)) # Force les entiers 1, 2, 3...
+    ax6.set_xticks(range(1, 11))
     sns.despine()
     st.pyplot(fig6)
 
 with col_cam2:
     st.warning("""
     ⚠️ **Stop ou Encore ?**
-    
     La courbe montre clairement qu'après **3 appels**, la probabilité de vente devient quasi-nulle.
-    
-    Continuer à appeler au-delà de 3 fois coûte de l'argent (temps agent) et risque d'énerver le client.
+    Continuer à appeler au-delà de 3 fois coûte de l'argent et risque "faire fuir" le client.
     """)
 
 st.markdown("---")
@@ -296,32 +307,27 @@ Les zones **vertes/foncées** indiquent les meilleures opportunités de vente.
 """)
 
 # 1. PRÉPARATION DES DONNÉES PIVOT
-# On transforme Oui/Non en 1/0 pour pouvoir calculer la moyenne
 df['target_num'] = df['souscription'].apply(lambda x: 1 if x == 'yes' else 0)
 
-# On crée la table pivot : Métier en ligne, Mois en colonne, Taux de réussite en valeur
 pivot_table = df.pivot_table(
     values='target_num',
     index='metier',
     columns='mois',
     aggfunc='mean'
-) * 100 # Pour avoir des pourcentages
+) * 100 
 
-# On remet les mois dans l'ordre chronologique (défini dans la partie précédente)
-# On vérifie que 'ordre_mois' existe, sinon on le redéfinit
 ordre_mois = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 pivot_table = pivot_table.reindex(columns=ordre_mois)
 
 # 2. AFFICHAGE DE LA HEATMAP
 fig7, ax7 = plt.subplots(figsize=(12, 8))
 
-# On utilise une palette "RdYlGn" (Rouge = Mauvais, Vert = Bon)
 sns.heatmap(
     pivot_table, 
-    annot=True,     # Affiche les chiffres dans les cases
-    fmt=".1f",      # 1 chiffre après la virgule
-    cmap="RdYlGn",  # Palette Rouge-Jaune-Vert
-    linewidths=.5,  # Petites lignes blanches entre les cases
+    annot=True,     
+    fmt=".1f",      
+    cmap="RdYlGn",  
+    linewidths=.5,  
     cbar_kws={'label': 'Taux de Conversion (%)'}
 )
 
@@ -331,6 +337,36 @@ ax7.set_title("Matrice de Rentabilité : Quel profil appeler à quel moment ?")
 
 st.pyplot(fig7)
 
+# --- AJOUT : INSIGHTS SPÉCIFIQUES À LA HEATMAP ---
+st.markdown("### 💡 Analyse détaillée de la Matrice")
+
+col_alerte, col_opportunite = st.columns(2)
+
+with col_alerte:
+    st.warning("""
+    ### ⚠️ ALERTE QUALITÉ (Data Quality)
+    **Le mystère "Unknown" en Avril (85.7% de réussite) :**
+    
+    Nous observons un taux de conversion record chez les clients dont le métier est inconnu (`unknown`) en Avril.
+    
+    👉 **Le Problème :** C'est une perte d'information critique ! Les commerciaux ont vendu, mais ils n'ont pas rempli le CRM.
+    **Action :** Rappeler aux équipes l'importance de qualifier la fiche client (le champ métier est obligatoire).
+    """)
+
+with col_opportunite:
+    st.success("""
+    ### 🚀 OPPORTUNITÉ DE MARCHÉ
+    **Le "Carton Plein" des Entrepreneurs en Mars (100%)**
+    
+    Les entrepreneurs convertissent à **100%** sur le mois de Mars.
+    
+    👉 **L'Explication Business :**
+    * **Fiscalité :** Fin de l'exercice fiscal et ouverture des nouveaux budgets.
+    * **Écosystème :** Saison des **Salons Professionnels** et des **Concours** (Recherche de financement).
+    
+    **Stratégie :** Lancer une campagne "Crédit Pro" spécifique fin Février.
+    """)
+
 # --- CONCLUSION FINALE ---
 st.markdown("---")
 st.header("🎓 RECOMMANDATIONS STRATÉGIQUES")
@@ -339,20 +375,20 @@ col_rec1, col_rec2 = st.columns(2)
 
 with col_rec1:
     st.success("""
-    ### ✅ CE QU'IL FAUT FAIRE
-    1.  **Cibler les extrêmes :** Les **Étudiants** (Mars/Sept) et les **Retraités** (Oct/Déc) sont les segments les plus rentables.
-    2.  **Optimiser le Timing :** Concentrer l'effort commercial en **Mars, Septembre et Octobre**.
-    3.  **Arrêter l'acharnement :** Si le client ne signe pas au **3ème appel**, abandonner.
+    ### ✅ CE QU'IL FAUT FAIRE (TOP ACTIONS)
+    1.  **Miser sur les Entrepreneurs en Mars 🚀 :** C'est le "Golden Month" (Clôture fiscale & Salons pro). À prioriser absolument.
+    2.  **Cibler les extrêmes générationnels :** Les **Étudiants** et les **Retraités** sont les plus rentables. Les cibler en Mars, Septembre et Octobre, là où nous avons moins d'appels, mais un meilleur taux de conversion.
+    3.  **Respecter la règle de 3 :** Si le client ne signe pas au **3ème appel**, abandonner. L'acharnement coûte cher et rapporte peu.
     """)
 
 with col_rec2:
     st.error("""
-    ### ⛔ CE QU'IL FAUT ÉVITER
-    1.  **Le piège du mois de Mai :** C'est le mois avec le plus d'appels mais le pire taux de réussite. Réduire la voilure.
-    2.  **Les profils "Ouvriers" (Blue-collar) :** Gros volume mais très faible conversion. À automatiser ou à déprioriser.
-    3.  **Ne pas se fier à l'Accuracy :** Le modèle ML doit être calibré sur le **Recall** pour détecter les rares "Oui".
+    ### ⛔ CE QU'IL FAUT ÉVITER (PIÈGES)
+    1.  **Le "Mirage" du mois de Mai :** C'est le mois avec le plus gros volume d'appels mais le pire taux de réussite. Réduire la pression sur cette période.
+    2.  **L'inconnue du CRM (Data Quality) :** Les profils "Unknown" convertissent fort en Avril, mais c'est une anomalie. **Forcer les commerciaux à remplir le champ métier.**
+    3.  **L'illusion de l'Accuracy :** Ne pas se fier à la précision globale du futur modèle (88%). Il faudra optimiser le **Recall** (ne rater aucune vente).
     """)
 
-# Signature (Optionnel)
+# Signature
 st.markdown("---")
 st.caption("Dashboard réalisé avec Streamlit & AWS S3 • Données Bank Marketing")
