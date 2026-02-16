@@ -6,3 +6,4 @@ scikit-learn>=1.5.0
 boto3
 python-dotenv
 streamlit
+plotly>=6.1.1

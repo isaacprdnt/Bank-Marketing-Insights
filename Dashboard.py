@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 import boto3
 import os
 from io import StringIO
@@ -40,14 +40,17 @@ try:
         # Définition de la cible
         COLONNE_CIBLE = 'souscription'
         
-        # Calcul du taux de conversion
+        # Création d'une colonne numérique pour les calculs (1=Yes, 0=No)
+        df['target_num'] = df[COLONNE_CIBLE].apply(lambda x: 1 if x == 'yes' else 0)
+        
+        # Calcul du taux de conversion global
         conversion_rate = (df[COLONNE_CIBLE].value_counts(normalize=True).get('yes', 0)) * 100
 
 except Exception as e:
     st.error(f"Erreur technique : {e}")
     st.stop()
 
-# --- 4. INTERFACE UTILISATEUR (Standard Streamlit) ---
+# --- 4. INTERFACE UTILISATEUR ---
 
 # Sidebar simple
 st.sidebar.title("Navigation")
@@ -84,20 +87,23 @@ st.header("1. Analyse de la Cible (Target)")
 c1, c2 = st.columns([2, 1])
 
 with c1:
-    # Graphique standard avec Seaborn (Palette 'Set2' classique)
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.countplot(x=COLONNE_CIBLE, data=df, order=['no', 'yes'], palette="Set2")
+    # GRAPHIQUE 1 : Distribution
+    counts = df[COLONNE_CIBLE].value_counts().reset_index()
+    counts.columns = ['Résultat', 'Nombre']
     
-    ax.set_title("Distribution des Souscriptions (Oui/Non)")
-    ax.set_ylabel("Nombre de clients")
-    ax.set_xlabel("Résultat de la campagne")
-    
-    # Fond blanc simple pour le graph
-    sns.despine()
-    st.pyplot(fig)
+    fig = px.bar(
+        counts, 
+        x='Résultat', 
+        y='Nombre', 
+        color='Résultat',
+        text_auto=True,
+        color_discrete_map={'no': '#EF553B', 'yes': '#00CC96'}, # Rouge / Vert
+        title="Distribution des Souscriptions (Oui/Non)"
+    )
+    fig.update_layout(showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
 
 with c2:
-    # Composant natif st.warning pour l'alerte
     st.warning("⚠️ **ALERTE DATA : DÉSÉQUILIBRE**")
     st.markdown("""
     On constate une majorité écrasante de refus (**'no'**).
@@ -106,9 +112,8 @@ with c2:
     * L'Accuracy (Précision globale) sera trompeuse.
     * Un modèle qui prédit "Non" tout le temps aura ~88% de réussite.
     
-    👉 **Action :** 1.  **Stratifier** nos échantillons (garder les proportions exactes de la réalité lors de l'entraînement).
-    
-    2.  Juger le modèle sur son **Recall** (sa capacité à ne rater aucune opportunité de vente), plutôt que sur sa précision globale.
+    👉 **Action :** 1.  **Stratifier** nos échantillons.
+    2.  Juger le modèle sur son **Recall** (ne rater aucune vente).
     """)
     
 st.markdown("---")
@@ -116,54 +121,58 @@ st.markdown("---")
 # --- SECTION 3 : PROFIL CLIENT (WHO) ---
 st.header("2. PROFILING : QUI EST LE CLIENT IDÉAL ?")
 
-st.markdown("""
-Ici, nous comparons le **Volume** (qui on appelle le plus) à la **Performance** (qui signe vraiment).
-L'objectif est d'identifier les segments sous-exploités.
-""")
+st.markdown("Comparaison **Volume** (qui on appelle) vs **Performance** (qui signe).")
 
-# 1. PRÉPARATION DES DONNÉES (Calculs des Taux de Conversion)
-# On crée un petit tableau récapitulatif par Métier
+# 1. PRÉPARATION DES DONNÉES
 df_job = df.groupby('metier').agg(
     Volume=('souscription', 'count'),
-    Conversion_Rate=('souscription', lambda x: (x == 'yes').mean() * 100)
-).sort_values(by='Conversion_Rate', ascending=False).reset_index()
+    Conversion_Rate=('target_num', 'mean')
+).reset_index()
+# Conversion en % et Arrondi à 2 décimales
+df_job['Conversion_Rate'] = (df_job['Conversion_Rate'] * 100).round(2)
+df_job = df_job.sort_values(by='Conversion_Rate', ascending=False)
 
-# 2. VISUALISATION MÉTIER (Volume vs Performance)
+# 2. VISUALISATION MÉTIER
 st.subheader("A. Analyse par Métier (Job)")
 
 col_job1, col_job2 = st.columns(2)
 
 with col_job1:
-    st.markdown("**Volume d'appels par métier**")
-    fig1, ax1 = plt.subplots(figsize=(6, 4))
-    # On trie par volume pour voir les "gros" segments
-    order_vol = df['metier'].value_counts().index
-    sns.countplot(y='metier', data=df, order=order_vol, palette="Blues_r")
-    ax1.set_xlabel("Nombre d'appels")
-    ax1.set_ylabel("")
-    sns.despine()
-    st.pyplot(fig1)
+    # Volume
+    df_vol = df_job.sort_values(by='Volume', ascending=True)
+    fig_vol = px.bar(
+        df_vol, 
+        x='Volume', 
+        y='metier', 
+        orientation='h',
+        title="Volume d'appels par métier",
+        text_auto=True,
+        color_discrete_sequence=['#636EFA']
+    )
+    st.plotly_chart(fig_vol, use_container_width=True)
 
 with col_job2:
-    st.markdown("**Taux de Conversion (%) par métier**")
-    fig2, ax2 = plt.subplots(figsize=(6, 4))
-    # On garde le même ordre que le taux de conversion calculé plus haut
-    sns.barplot(y='metier', x='Conversion_Rate', data=df_job, palette="Greens_r")
-    ax2.set_xlabel("Taux de réussite (%)")
-    ax2.set_ylabel("")
-    # On ajoute une ligne verticale pour la moyenne globale
-    ax2.axvline(conversion_rate, color='red', linestyle='--', label=f'Moyenne ({conversion_rate:.1f}%)')
-    ax2.legend()
-    sns.despine()
-    st.pyplot(fig2)
+    # Performance
+    fig_perf = px.bar(
+        df_job, 
+        x='Conversion_Rate', 
+        y='metier',
+        orientation='h',
+        title="Taux de Conversion (%)",
+        text_auto='.2f', # Formatage affichage 2 décimales
+        color='Conversion_Rate',
+        color_continuous_scale='Greens'
+    )
+    fig_perf.add_vline(x=conversion_rate, line_dash="dash", line_color="red", annotation_text="Moyenne")
+    st.plotly_chart(fig_perf, use_container_width=True)
 
-# Petit commentaire Business automatique
+# Commentaire Business
 top_job = df_job.iloc[0]['metier']
 top_perf = df_job.iloc[0]['Conversion_Rate']
 flop_job = df_job.iloc[-1]['metier']
 
 st.info(f"""
-**Observation Business :** Le métier **{top_job}** est le plus performant avec **{top_perf:.1f}%** de réussite.
+**Observation Business :** Le métier **{top_job}** est le plus performant avec **{top_perf:.2f}%** de réussite.
 A l'inverse, **{flop_job}** convertit mal, malgré un volume souvent élevé.
 
 👉 *Stratégie : Réallouer les efforts des profils à faible rendement vers les profils performants.*
@@ -176,48 +185,52 @@ st.subheader("B. Analyse Démographique")
 col_age1, col_age2 = st.columns(2)
 
 with col_age1:
-    st.markdown("**Performance par Tranche d'Âge**")
-    # On calcule le taux par age_group (si la colonne existe grâce à ton fichier)
     if 'age_group' in df.columns:
-        df_age = df.groupby('age_group')['souscription'].apply(lambda x: (x=='yes').mean() * 100).reset_index()
+        df_age = df.groupby('age_group')['target_num'].mean().reset_index()
+        # Arrondi
+        df_age['target_num'] = (df_age['target_num'] * 100).round(2)
         
-        fig3, ax3 = plt.subplots(figsize=(6, 4))
-        sns.barplot(x='age_group', y='souscription', data=df_age, palette="Purples")
-        ax3.set_ylabel("Taux de Conversion (%)")
-        ax3.set_xlabel("Groupe d'Âge")
-        sns.despine()
-        st.pyplot(fig3)
+        fig_age = px.bar(
+            df_age, 
+            x='age_group', 
+            y='target_num',
+            title="Performance par Tranche d'Âge",
+            text_auto='.2f',
+            color='target_num',
+            color_continuous_scale='Purples',
+            labels={'target_num': 'Conversion (%)'}
+        )
+        st.plotly_chart(fig_age, use_container_width=True)
     else:
         st.warning("Colonne 'age_group' introuvable.")
 
 with col_age2:
-    st.markdown("**Performance par Statut Matrimonial**")
-    # Calcul par statut
-    df_statut = df.groupby('statut_matrimonial')['souscription'].apply(lambda x: (x=='yes').mean() * 100).reset_index()
+    df_statut = df.groupby('statut_matrimonial')['target_num'].mean().reset_index()
+    # Arrondi
+    df_statut['target_num'] = (df_statut['target_num'] * 100).round(2)
     
-    fig4, ax4 = plt.subplots(figsize=(6, 4))
-    sns.barplot(x='statut_matrimonial', y='souscription', data=df_statut, palette="Oranges")
-    ax4.set_ylabel("Taux de Conversion (%)")
-    ax4.set_xlabel("Statut")
-    sns.despine()
-    st.pyplot(fig4)
+    fig_statut = px.bar(
+        df_statut, 
+        x='statut_matrimonial', 
+        y='target_num',
+        title="Performance par Statut",
+        text_auto='.2f',
+        color='target_num',
+        color_continuous_scale='Oranges',
+        labels={'target_num': 'Conversion (%)'}
+    )
+    st.plotly_chart(fig_statut, use_container_width=True)
 
-# --- CALCULS AUTOMATIQUES POUR LE RÉSUMÉ DÉMOGRAPHIQUE (PARTIE B) ---
-if 'target_num' not in df.columns:
-    df['target_num'] = df[COLONNE_CIBLE].apply(lambda x: 1 if x == 'yes' else 0)
-
-# Identification du Meilleur Groupe d'Âge
+# Calculs auto pour texte
 top_age_group = df.groupby('age_group')['target_num'].mean().idxmax() if 'age_group' in df.columns else "N/A"
 perf_age = df.groupby('age_group')['target_num'].mean().max() * 100 if 'age_group' in df.columns else 0
-
-# Identification du Meilleur Statut Matrimonial
 top_statut = df.groupby('statut_matrimonial')['target_num'].mean().idxmax()
 perf_statut = df.groupby('statut_matrimonial')['target_num'].mean().max() * 100
 
 st.info(f"""
 **Observation Business :** Sur le plan démographique, deux signaux forts se dégagent :
-1.  **L'Âge :** Le segment **{top_age_group}** est le plus réactif avec **{perf_age:.1f}%** de conversion.
-2.  **La Situation :** Les profils **{top_statut}** (statut matrimonial) surperforment avec **{perf_statut:.1f}%** de réussite.
+1.  **L'Âge :** Le segment **{top_age_group}** est le plus réactif avec **{perf_age:.2f}%** de conversion.
+2.  **La Situation :** Les profils **{top_statut}** (statut matrimonial) surperforment avec **{perf_statut:.2f}%** de réussite.
 
 👉 *Stratégie : Ne vendez pas le même produit à tout le monde. Adaptez le discours.*
 """)
@@ -227,36 +240,58 @@ st.markdown("---")
 # --- SECTION 4 : STRATÉGIE TEMPORELLE (WHEN) ---
 st.header("3. TIMING : QUAND LANCER LES CAMPAGNES ?")
 
-st.markdown("""
-Analyse de la **Saisonnalité** (Mois) et de la **Pression Marketing** (Nombre de contacts).
-Le but est d'optimiser le planning des équipes.
-""")
+st.markdown("Analyse de la **Saisonnalité** (Mois) et de la **Pression Marketing**.")
 
-# 1. ANALYSE MENSUELLE (Saisonnalité)
-st.subheader("A. Le Paradoxe du Mois de Mai (Volume vs Performance)")
+# 1. ANALYSE MENSUELLE (COMBO CHART AVEC PLOTLY GO)
+st.subheader("A. Le Paradoxe du Mois de Mai")
 
-# On définit l'ordre chronologique des mois
 ordre_mois = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-
-# Préparation des données
 df_mois = df.groupby('mois').agg(
     Volume=('souscription', 'count'),
-    Taux_Conversion=('souscription', lambda x: (x == 'yes').mean() * 100)
-).reindex(ordre_mois).dropna() 
+    Taux_Conversion=('target_num', 'mean')
+).reindex(ordre_mois).dropna().reset_index()
+# Arrondi
+df_mois['Taux_Conversion'] = (df_mois['Taux_Conversion'] * 100).round(2)
 
 col_mois1, col_mois2 = st.columns([2, 1])
 
 with col_mois1:
-    fig5, ax1 = plt.subplots(figsize=(10, 5))
-    sns.barplot(x=df_mois.index, y='Volume', data=df_mois, color='lightgrey', alpha=0.6, ax=ax1, label='Volume Appels')
-    ax1.set_ylabel("Volume d'appels (Barres)", color='grey')
+    fig_combo = go.Figure()
+
+    # Barres (Volume)
+    fig_combo.add_trace(go.Bar(
+        x=df_mois['mois'],
+        y=df_mois['Volume'],
+        name='Volume Appels',
+        marker_color='lightgrey'
+    ))
+
+    # Ligne (Taux)
+    fig_combo.add_trace(go.Scatter(
+        x=df_mois['mois'],
+        y=df_mois['Taux_Conversion'],
+        name='Taux de Réussite (%)',
+        yaxis='y2',
+        mode='lines+markers',
+        line=dict(color='red', width=3),
+        hovertemplate='%{y:.2f}%' # Template survol propre
+    ))
+
+    # Layout double axe
+    fig_combo.update_layout(
+        title="Volume vs Performance par Mois",
+        yaxis=dict(title="Volume d'appels"),
+        yaxis2=dict(
+            title="Taux de Conversion (%)",
+            overlaying='y',
+            side='right',
+            range=[0, df_mois['Taux_Conversion'].max()*1.2]
+        ),
+        legend=dict(x=0, y=1.1, orientation='h'),
+        hovermode="x unified"
+    )
     
-    ax2 = ax1.twinx()
-    sns.lineplot(x=df_mois.index, y='Taux_Conversion', data=df_mois, color='red', marker='o', linewidth=3, ax=ax2, label='Taux de Réussite')
-    ax2.set_ylabel("Taux de Conversion % (Ligne Rouge)", color='red')
-    
-    plt.title("Volume vs Performance par Mois")
-    st.pyplot(fig5)
+    st.plotly_chart(fig_combo, use_container_width=True)
 
 with col_mois2:
     st.info("""
@@ -268,26 +303,30 @@ with col_mois2:
     """)
 
 
-# 2. ANALYSE DE LA PRESSION (Nombre d'appels)
-st.subheader("B. Acharnement vs Efficacité (Combien d'appels ?)")
+# 2. ANALYSE DE LA PRESSION
+st.subheader("B. Acharnement vs Efficacité")
 
-df_campaign = df.groupby('campaign')['souscription'].apply(lambda x: (x=='yes').mean() * 100).reset_index()
-df_campaign = df_campaign[df_campaign['campaign'] <= 10] 
+df_campaign = df.groupby('campaign')['target_num'].mean().reset_index()
+# Arrondi
+df_campaign['target_num'] = (df_campaign['target_num'] * 100).round(2)
+df_campaign = df_campaign[df_campaign['campaign'] <= 10]
 
 col_cam1, col_cam2 = st.columns([2, 1])
 
 with col_cam1:
-    fig6, ax6 = plt.subplots(figsize=(8, 4))
-    sns.lineplot(x='campaign', y='souscription', data=df_campaign, marker='o', color='purple')
-    plt.axvline(x=3, color='red', linestyle='--', alpha=0.5)
-    plt.text(3.2, df_campaign['souscription'].max(), 'Zone de Harcèlement', color='red')
+    fig_press = px.line(
+        df_campaign,
+        x='campaign',
+        y='target_num',
+        markers=True,
+        title="Chute de la conversion après X appels",
+        labels={'target_num': 'Succès (%)', 'campaign': 'Nb contacts'}
+    )
+    fig_press.add_vline(x=3, line_dash="dash", line_color="red", annotation_text="Zone Harcèlement")
+    # Mise à jour du format de survol
+    fig_press.update_traces(hovertemplate='Appels: %{x}<br>Succès: %{y:.2f}%')
     
-    ax6.set_title("Chute de la conversion après X appels")
-    ax6.set_xlabel("Nombre de contacts")
-    ax6.set_ylabel("Probabilité de succès (%)")
-    ax6.set_xticks(range(1, 11))
-    sns.despine()
-    st.pyplot(fig6)
+    st.plotly_chart(fig_press, use_container_width=True)
 
 with col_cam2:
     st.warning("""
@@ -301,43 +340,33 @@ st.markdown("---")
 # --- SECTION 5 : ANALYSE CROISÉE (THE SNIPER VIEW) ---
 st.header("4. CIBLAGE CHIRURGICAL : QUI & QUAND ?")
 
-st.markdown("""
-Cette carte de chaleur (Heatmap) croise le **Métier** et le **Mois**.
-Les zones **vertes/foncées** indiquent les meilleures opportunités de vente.
-""")
+st.markdown("Carte de chaleur (Heatmap) croisée **Métier x Mois**.")
 
-# 1. PRÉPARATION DES DONNÉES PIVOT
-df['target_num'] = df['souscription'].apply(lambda x: 1 if x == 'yes' else 0)
-
+# PRÉPARATION PIVOT
 pivot_table = df.pivot_table(
     values='target_num',
     index='metier',
     columns='mois',
     aggfunc='mean'
-) * 100 
-
-ordre_mois = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+)
+# Arrondi du pivot direct
+pivot_table = (pivot_table * 100).round(2)
 pivot_table = pivot_table.reindex(columns=ordre_mois)
 
-# 2. AFFICHAGE DE LA HEATMAP
-fig7, ax7 = plt.subplots(figsize=(12, 8))
-
-sns.heatmap(
-    pivot_table, 
-    annot=True,     
-    fmt=".1f",      
-    cmap="RdYlGn",  
-    linewidths=.5,  
-    cbar_kws={'label': 'Taux de Conversion (%)'}
+# HEATMAP PLOTLY
+fig_heat = px.imshow(
+    pivot_table,
+    labels=dict(x="Mois", y="Métier", color="Conversion (%)"),
+    x=pivot_table.columns,
+    y=pivot_table.index,
+    color_continuous_scale='RdYlGn',
+    text_auto=".2f", # 2 décimales dans les cases
+    aspect="auto"
 )
+fig_heat.update_layout(title="Matrice de Rentabilité")
+st.plotly_chart(fig_heat, use_container_width=True)
 
-ax7.set_xlabel("Mois de l'année")
-ax7.set_ylabel("Catégorie Socio-Pro (Job)")
-ax7.set_title("Matrice de Rentabilité : Quel profil appeler à quel moment ?")
-
-st.pyplot(fig7)
-
-# --- AJOUT : INSIGHTS SPÉCIFIQUES À LA HEATMAP ---
+# --- INSIGHTS SPÉCIFIQUES ---
 st.markdown("### 💡 Analyse détaillée de la Matrice")
 
 col_alerte, col_opportunite = st.columns(2)
@@ -377,7 +406,7 @@ with col_rec1:
     st.success("""
     ### ✅ CE QU'IL FAUT FAIRE (TOP ACTIONS)
     1.  **Miser sur les Entrepreneurs en Mars 🚀 :** C'est le "Golden Month" (Clôture fiscale & Salons pro). À prioriser absolument.
-    2.  **Cibler les extrêmes générationnels :** Les **Étudiants** et les **Retraités** sont les plus rentables. Les cibler en Mars, Septembre et Octobre, là où nous avons moins d'appels, mais un meilleur taux de conversion.
+    2.  **Cibler les extrêmes générationnels :** Les **Étudiants** (Rentrée Mars/Sept) et les **Retraités** (Placement en Oct/Déc) sont les plus rentables.
     3.  **Respecter la règle de 3 :** Si le client ne signe pas au **3ème appel**, abandonner. L'acharnement coûte cher et rapporte peu.
     """)
 
