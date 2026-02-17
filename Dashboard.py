@@ -97,7 +97,7 @@ with c1:
         y='Nombre', 
         color='Résultat',
         text_auto=True,
-        color_discrete_map={'no': '#EF553B', 'yes': '#00CC96'}, # Rouge / Vert
+        color_discrete_map={'no': "#CA2103", 'yes': "#05662A"}, # Rouge / Vert
         title="Distribution des Souscriptions (Oui/Non)"
     )
     fig.update_layout(showlegend=False)
@@ -147,7 +147,7 @@ with col_job1:
         orientation='h',
         title="Volume d'appels par métier",
         text_auto=True,
-        color_discrete_sequence=['#636EFA']
+        color_discrete_sequence=["#E6A66A"]
     )
     st.plotly_chart(fig_vol, use_container_width=True)
 
@@ -161,9 +161,9 @@ with col_job2:
         title="Taux de Conversion (%)",
         text_auto='.2f', # Formatage affichage 2 décimales
         color='Conversion_Rate',
-        color_continuous_scale='Greens'
+        color_continuous_scale=["#EED9C5","#E6A66A","#F18C2D","#884506"]
     )
-    fig_perf.add_vline(x=conversion_rate, line_dash="dash", line_color="red", annotation_text="Moyenne")
+    fig_perf.add_vline(x=conversion_rate, line_dash="dash", line_color="Brown", annotation_text="Moyenne")
     st.plotly_chart(fig_perf, use_container_width=True)
 
 # Commentaire Business
@@ -197,7 +197,7 @@ with col_age1:
             title="Performance par Tranche d'Âge",
             text_auto='.2f',
             color='target_num',
-            color_continuous_scale='Purples',
+            color_continuous_scale=["#FFEEE5","#DB9452","#D8802E","#FF7B00"],
             labels={'target_num': 'Conversion (%)'}
         )
         st.plotly_chart(fig_age, use_container_width=True)
