@@ -117,16 +117,24 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
 
     # --- Colonnes exactes utilisées par le modèle (47 features) ---
     model_columns = [
-        'age', 'solde_bancaire', 'day', 'duration', 'campaign', 'previous',
-        'defaut_credit', 'pret_immo', 'pret_conso',
-        'metier_admin.', 'metier_blue-collar','metier_entrepreneur','metier_housemaid','metier_management',
-        'metier_retired','metier_self-employed','metier_services','metier_student','metier_technician','metier_unemployed','metier_unknown',
-        'statut_matrimonial_divorced','statut_matrimonial_married','statut_matrimonial_single',
-        'niveau_etudes_primary','niveau_etudes_secondary','niveau_etudes_tertiary','niveau_etudes_unknown',
-        'mois_apr','mois_aug','mois_dec','mois_feb','mois_jan','mois_jul','mois_jun','mois_mar','mois_may','mois_nov','mois_oct','mois_sep',
-        'resultat_precedent_failure','resultat_precedent_other','resultat_precedent_success','resultat_precedent_unknown',
-        'segment_contact_cellular','segment_contact_telephone','segment_contact_unknown'
-    ]
+    'age', 'solde_bancaire', 'day', 'duration', 'campaign', 'previous',
+    'defaut_credit', 'pret_immo', 'pret_conso',
+    # Métier (11 colonnes au lieu de 12 - 'admin.' est souvent la base supprimée)
+    'metier_blue-collar', 'metier_entrepreneur', 'metier_housemaid', 'metier_management',
+    'metier_retired', 'metier_self-employed', 'metier_services', 'metier_student', 
+    'metier_technician', 'metier_unemployed', 'metier_unknown',
+    # Statut matrimonial (2 colonnes au lieu de 3)
+    'statut_matrimonial_married', 'statut_matrimonial_single',
+    # Niveau études (3 colonnes au lieu de 4)
+    'niveau_etudes_secondary', 'niveau_etudes_tertiary', 'niveau_etudes_unknown',
+    # Mois (11 colonnes au lieu de 12)
+    'mois_aug', 'mois_dec', 'mois_feb', 'mois_jan', 'mois_jul', 'mois_jun', 
+    'mois_mar', 'mois_may', 'mois_nov', 'mois_oct', 'mois_sep',
+    # Résultat précédent (3 colonnes au lieu de 4)
+    'resultat_precedent_other', 'resultat_precedent_success', 'resultat_precedent_unknown',
+    # Segment contact (2 colonnes au lieu de 3)
+    'segment_contact_telephone', 'segment_contact_unknown'
+]
 
     # Ajouter les colonnes manquantes
     for col in model_columns:
