@@ -253,6 +253,7 @@ df_mois = df.groupby('mois').agg(
 # Arrondi
 df_mois['Taux_Conversion'] = (df_mois['Taux_Conversion'] * 100).round(2)
 
+# MODIFICATION ICI : Séparation en 2 colonnes pour ajouter le Zoom
 col_mois1, col_mois2 = st.columns([2, 1])
 
 with col_mois1:
@@ -293,7 +294,7 @@ with col_mois1:
     
     st.plotly_chart(fig_combo, use_container_width=True)
 
-with col_mois2:
+    # REPRISE DE TON TEXTE D'ORIGINE (Sans aucune modification)
     st.info("""
     📉 **Analyse :**
     Le mois de **Mai (may)** : C'est le pic d'appels, mais le taux de réussite s'effondre.
@@ -301,6 +302,32 @@ with col_mois2:
     ✅ **Opportunité :**
     Les mois de **Mars, Septembre, Octobre** ont moins d'appels mais d'excellents taux de conversion.
     """)
+
+# NOUVEAU BLOC : LE ZOOM (Dans la colonne de droite)
+with col_mois2:
+    st.markdown("#### 🔍 Zoom : Qui a-t-on appelé ?")
+    
+    # Sélecteur de mois (Par défaut sur 'may')
+    mois_select = st.selectbox("Sélectionnez un mois :", ordre_mois, index=4) # index 4 = may
+    
+    # Filtrage des données pour le mois choisi
+    df_zoom = df[df['mois'] == mois_select]
+    df_zoom_job = df_zoom['metier'].value_counts().reset_index()
+    df_zoom_job.columns = ['Metier', 'Volume']
+    df_zoom_job = df_zoom_job.sort_values(by='Volume', ascending=True) # Tri pour le graph
+    
+    # Graphique de détail
+    fig_zoom = px.bar(
+        df_zoom_job, 
+        x='Volume', 
+        y='Metier', 
+        orientation='h',
+        title=f"Répartition en {mois_select.upper()}",
+        text_auto=True,
+        color_discrete_sequence=["#E6A66A"]
+    )
+    fig_zoom.update_layout(margin=dict(l=0, r=0, t=30, b=0), showlegend=False) # Optimisation espace
+    st.plotly_chart(fig_zoom, use_container_width=True)
 
 
 # 2. ANALYSE DE LA PRESSION
