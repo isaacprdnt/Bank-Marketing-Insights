@@ -40,10 +40,8 @@ model = charger_modele_s3()
 # --- 3. SIDEBAR : INTERFACE (UX FUSIONNÉE) ---
 st.sidebar.header("🎯 Leviers Prioritaires")
 
-# --- MODIFICATION 1 : ÂGE EN MENU DÉROULANT (EXTRAIT DE V1) ---
 resultat_precedent = st.sidebar.selectbox("Résultat campagne précédente", ['no existant', 'failure', 'success'])
 pret_immo = st.sidebar.selectbox("A déjà un Prêt Immobilier ?", ['no', 'yes'])
-# Utilisation d'un selectbox au lieu du slider pour l'âge
 age = st.sidebar.selectbox("Âge du client", options=list(range(18, 96)), index=17) 
 solde_bancaire = st.sidebar.number_input("Solde Bancaire (€)", -5000, 100000, 1500)
 previous = st.sidebar.slider("Nombre d'interactions passées", 0, 30, 0)
@@ -66,7 +64,7 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
         'solde_bancaire': solde_bancaire,
         'day': day,
         'campaign': campaign,
-        'pdays': -1, 
+        'pdays': -1,
         'previous': previous,
         'defaut_credit': defaut_credit,
         'pret_immo': pret_immo,
@@ -83,7 +81,6 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
                 'pret_immo', 'pret_conso', 'mois','resultat_precedent','segment_contact']
     input_data_encoded = pd.get_dummies(input_data, columns=cat_cols)
 
-    # Conservation stricte de TES 41 colonnes pour éviter le crash
     model_columns = [
         'age', 'solde_bancaire', 'day', 'campaign', 'pdays', 'previous',
         'defaut_credit_yes', 'pret_immo_yes', 'pret_conso_yes',
@@ -104,7 +101,7 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
     proba = model.predict_proba(input_data_encoded)[0][1]
     score = round(proba * 100, 2)
 
-    # --- 5. AFFICHAGE ET RECOMMANDATIONS ENRICHIES (EXTRAIT DE V1) ---
+    # --- 5. AFFICHAGE ET RECOMMANDATIONS ---
     st.markdown("---")
     st.markdown(f"### Résultat de l'Analyse IA")
     
@@ -131,7 +128,6 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- MODIFICATION 2 : RECOMMANDATIONS DÉTAILLÉES ---
     st.markdown("### 🚦 Recommandation ")
     if score >= 40:
         st.success("🟢 **PRIORITÉ HAUTE** : Opportunité immédiate. Client très réceptif. Conclure rapidement en mettant en avant les avantages de l'épargne et la sécurité.")
@@ -139,31 +135,33 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
         st.warning("🟠 **PRIORITÉ MOYENNE** : Client à potentiel, renforcer l'argumentaire. Le client est hésitant mais captable avec une offre personnalisée axée sur la flexibilité.")
     else:
         st.error("🔴 **PRIORITÉ BASSE** : Ne pas abandonner, mais allouer peu de ressources. Allouer le temps commercial sur des profils plus qualifiés pour maximiser le ROI.")
-    # --- CONSEILS COMMERCIAUX ---
-st.markdown("## 💼 Conseils pour le commercial")
 
-if score < 30:
-    st.info("📉 Faible probabilité de souscription")
-    st.markdown("""
-    - Ne pas investir trop de temps sur ce client pour le moment  
-    - Prévoir un suivi léger dans quelques semaines  
-    - Noter les préférences du client pour un futur contact  
-    - Rester poli et courtois, maintenir la relation
-    """)
-elif score <= 60:
-    st.info("⚖️ Probabilité moyenne de souscription")
-    st.markdown("""
-    - Contacter le client avec un argumentaire personnalisé  
-    - Mettre en avant les avantages concrets du produit  
-    - Prévoir un suivi rapproché pour répondre aux questions  
-    - Identifier les objections possibles et préparer des réponses
-    """)
-else:
-    st.info("🚀 Forte probabilité de souscription")
-    st.markdown("""
-    - Priorité haute : contacter rapidement le client  
-    - Finaliser la souscription dès que possible  
-    - Proposer des services complémentaires adaptés  
-    - Insister sur les promotions ou offres exclusives  
-    - Confirmer les informations et simplifier le processus
-    """)
+    # --- CONSEILS COMMERCIAUX (DÉSORMAIS BIEN INDENTÉS) ---
+    st.markdown("## 💼 Conseils pour le commercial")
+
+    if score < 30:
+        st.info("📉 Faible probabilité de souscription")
+        st.markdown("""
+        - Ne pas investir trop de temps sur ce client pour le moment  
+        - Prévoir un suivi léger dans quelques semaines  
+        - Noter les préférences du client pour un futur contact  
+        - Rester poli et courtois, maintenir la relation
+        """)
+    elif score <= 60:
+        st.info("⚖️ Probabilité moyenne de souscription")
+        st.markdown("""
+        - Contacter le client avec un argumentaire personnalisé  
+        - Mettre en avant les avantages concrets du produit  
+        - Prévoir un suivi rapproché pour répondre aux questions  
+        - Identifier les objections possibles et préparer des réponses
+        """)
+    else:
+        st.info("🚀 Forte probabilité de souscription")
+        st.markdown("""
+        - Priorité haute : contacter rapidement le client  
+        - Finaliser la souscription dès que possible  
+        - Proposer des services complémentaires adaptés  
+        - Insister sur les promotions ou offres exclusives  
+        - Confirmer les informations et simplifier le processus
+        """)
+        
