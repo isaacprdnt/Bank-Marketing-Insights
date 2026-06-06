@@ -164,4 +164,5 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
         - Insister sur les promotions ou offres exclusives  
         - Confirmer les informations et simplifier le processus
         """)
-        
+else:
+    st.info("👈 Entrez les informations requises pour lancer une analyse prédictive.")
