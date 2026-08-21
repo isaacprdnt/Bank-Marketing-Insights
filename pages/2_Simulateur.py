@@ -18,9 +18,9 @@ st.set_page_config(
 
 # --- 2. CHARGEMENT DU MODÈLE S3 ---
 @st.cache_resource(show_spinner="Réveil de l'IA...")
-def charger_modele_s3():
+def charger_pipeline_s3():
     bucket_name = os.getenv('BUCKET_NAME')
-    model_key = "model_bank_marketing_v1.joblib"
+    model_key = "pipeline_bank_marketing_v2.joblib"
     try:
         s3 = boto3.client(
             's3',
@@ -35,7 +35,7 @@ def charger_modele_s3():
         st.error(f"❌ Erreur S3 : {e}")
         return None
 
-model = charger_modele_s3()
+pipeline = charger_pipeline_s3()
 
 # --- 3. SIDEBAR : INTERFACE (UX FUSIONNÉE) ---
 st.sidebar.header("🎯 Leviers Prioritaires")
@@ -64,7 +64,6 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
         'solde_bancaire': solde_bancaire,
         'day': day,
         'campaign': campaign,
-        'pdays': -1,
         'previous': previous,
         'defaut_credit': defaut_credit,
         'pret_immo': pret_immo,
@@ -77,30 +76,9 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
         'segment_contact': segment_contact
     }])
 
-    cat_cols = ['metier','statut_matrimonial','niveau_etudes','defaut_credit', 
-                'pret_immo', 'pret_conso', 'mois','resultat_precedent','segment_contact']
-    input_data_encoded = pd.get_dummies(input_data, columns=cat_cols)
-
-    model_columns = [
-        'age', 'solde_bancaire', 'day', 'campaign', 'pdays', 'previous',
-        'defaut_credit_yes', 'pret_immo_yes', 'pret_conso_yes',
-        'metier_blue-collar', 'metier_entrepreneur', 'metier_housemaid', 'metier_management', 'metier_retired', 
-        'metier_self-employed', 'metier_services', 'metier_student', 'metier_technician', 'metier_unemployed', 'metier_unknown',
-        'statut_matrimonial_married', 'statut_matrimonial_single',
-        'niveau_etudes_secondary', 'niveau_etudes_tertiary', 'niveau_etudes_unknown',
-        'mois_aug', 'mois_dec', 'mois_feb', 'mois_jan', 'mois_jul', 'mois_jun', 'mois_mar', 'mois_may', 'mois_nov', 'mois_oct', 'mois_sep',
-        'resultat_precedent_no existant', 'resultat_precedent_success',
-        'segment_contact_Intermediaire (31-90j)', 'segment_contact_Jamais contacte', 'segment_contact_Recent (0-30j)'
-    ]
-
-    for col in model_columns:
-        if col not in input_data_encoded.columns:
-            input_data_encoded[col] = 0
-    input_data_encoded = input_data_encoded[model_columns]
-
-    proba = model.predict_proba(input_data_encoded)[0][1]
+    proba = pipeline.predict_proba(input_data)[0][1]
     score = round(proba * 100, 2)
-
+    
     # --- 5. AFFICHAGE ET RECOMMANDATIONS ---
     st.markdown("---")
     st.markdown(f"### Résultat de l'Analyse IA")
