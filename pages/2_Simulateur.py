@@ -20,7 +20,7 @@ st.set_page_config(
 @st.cache_resource(show_spinner="Réveil de l'IA...")
 def charger_pipeline_s3():
     bucket_name = os.getenv('BUCKET_NAME')
-    model_key = "pipeline_bank_marketing_v2.joblib"
+    model_key = "pipeline_bank_marketing_v3_calibre.joblib"
     try:
         s3 = boto3.client(
             's3',
@@ -42,7 +42,7 @@ st.sidebar.header("🎯 Leviers Prioritaires")
 
 resultat_precedent = st.sidebar.selectbox("Résultat campagne précédente", ['no existant', 'failure', 'success'])
 pret_immo = st.sidebar.selectbox("A déjà un Prêt Immobilier ?", ['no', 'yes'])
-age = st.sidebar.selectbox("Âge du client", options=list(range(18, 96)), index=17) 
+age = st.sidebar.selectbox("Âge du client", options=list(range(18, 96)), index=17)
 solde_bancaire = st.sidebar.number_input("Solde Bancaire (€)", -5000, 100000, 1500)
 previous = st.sidebar.slider("Nombre d'interactions passées", 0, 30, 0)
 
@@ -78,14 +78,17 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
 
     proba = pipeline.predict_proba(input_data)[0][1]
     score = round(proba * 100, 2)
-    
+
     # --- 5. AFFICHAGE ET RECOMMANDATIONS ---
+    # Bornes recalibrées (10% / 25%) suite à la calibration isotonic du score (Étape 12 du
+    # notebook) : le score est désormais une vraie fréquence observée, plus gonflé par
+    # class_weight='balanced' — les anciennes bornes 15%/40% ne correspondaient plus à rien.
     st.markdown("---")
     st.markdown(f"### Résultat de l'Analyse IA")
-    
-    if score >= 40:
+
+    if score >= 25:
         st.success(f"**Score de Propension : {score}% (Potentiel Élevé)**")
-    elif score >= 15:
+    elif score >= 10:
         st.warning(f"**Score de Propension : {score}% (Potentiel Modéré)**")
     else:
         st.info(f"**Score de Propension : {score}% (Potentiel Faible)**")
@@ -97,9 +100,9 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
         gauge={
             'axis': {'range': [0, 100]},
             'steps': [
-                {'range': [0, 15], 'color': "#FF4B4B"},
-                {'range': [15, 40], 'color': "#FFAA00"},
-                {'range': [40, 100], 'color': "#00BB44"}
+                {'range': [0, 10], 'color': "#FF4B4B"},
+                {'range': [10, 25], 'color': "#FFAA00"},
+                {'range': [25, 100], 'color': "#00BB44"}
             ],
             'bar': {'color': "black"}
         }
@@ -107,39 +110,39 @@ if st.sidebar.button("🎯 Lancer la prédiction"):
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("### 🚦 Recommandation ")
-    if score >= 40:
+    if score >= 25:
         st.success("🟢 **PRIORITÉ HAUTE** : Opportunité immédiate. Client très réceptif. Conclure rapidement en mettant en avant les avantages de l'épargne et la sécurité.")
-    elif score >= 15:
+    elif score >= 10:
         st.warning("🟠 **PRIORITÉ MOYENNE** : Client à potentiel, renforcer l'argumentaire. Le client est hésitant mais captable avec une offre personnalisée axée sur la flexibilité.")
     else:
         st.error("🔴 **PRIORITÉ BASSE** : Ne pas abandonner, mais allouer peu de ressources. Allouer le temps commercial sur des profils plus qualifiés pour maximiser le ROI.")
 
-    # --- CONSEILS COMMERCIAUX (DÉSORMAIS BIEN INDENTÉS) ---
+    # --- CONSEILS COMMERCIAUX (bornes alignées sur les mêmes seuils 10%/25% que la jauge) ---
     st.markdown("## 💼 Conseils pour le commercial")
 
-    if score < 30:
+    if score < 10:
         st.info("📉 Faible probabilité de souscription")
         st.markdown("""
-        - Ne pas investir trop de temps sur ce client pour le moment  
-        - Prévoir un suivi léger dans quelques semaines  
-        - Noter les préférences du client pour un futur contact  
+        - Ne pas investir trop de temps sur ce client pour le moment
+        - Prévoir un suivi léger dans quelques semaines
+        - Noter les préférences du client pour un futur contact
         - Rester poli et courtois, maintenir la relation
         """)
-    elif score <= 60:
+    elif score < 25:
         st.info("⚖️ Probabilité moyenne de souscription")
         st.markdown("""
-        - Contacter le client avec un argumentaire personnalisé  
-        - Mettre en avant les avantages concrets du produit  
-        - Prévoir un suivi rapproché pour répondre aux questions  
+        - Contacter le client avec un argumentaire personnalisé
+        - Mettre en avant les avantages concrets du produit
+        - Prévoir un suivi rapproché pour répondre aux questions
         - Identifier les objections possibles et préparer des réponses
         """)
     else:
         st.info("🚀 Forte probabilité de souscription")
         st.markdown("""
-        - Priorité haute : contacter rapidement le client  
-        - Finaliser la souscription dès que possible  
-        - Proposer des services complémentaires adaptés  
-        - Insister sur les promotions ou offres exclusives  
+        - Priorité haute : contacter rapidement le client
+        - Finaliser la souscription dès que possible
+        - Proposer des services complémentaires adaptés
+        - Insister sur les promotions ou offres exclusives
         - Confirmer les informations et simplifier le processus
         """)
 else:
